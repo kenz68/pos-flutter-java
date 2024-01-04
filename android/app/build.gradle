@@ -55,3 +55,7 @@ android {
 flutter {
     source '../..'
 }
+
+dependencies {
+    implementation files('src/libsref/ScannerAPI.jar')
+}
