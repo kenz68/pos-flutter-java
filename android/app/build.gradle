@@ -57,5 +57,6 @@ flutter {
 }
 
 dependencies {
-    implementation files('src/libsref/ScannerAPI.jar')
+    implementation files('libsref/ScannerAPI.jar')
+    implementation files('libsref/scankey.jar')
 }

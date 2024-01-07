@@ -15,35 +15,103 @@ import android.os.BatteryManager;
 import android.os.Build.VERSION;
 import android.os.Build.VERSION_CODES;
 import android.os.Bundle;
+import android.os.RemoteException;
 import android.util.Log;
 
+import com.seuic.scankey.IKeyEventCallback;
+import com.seuic.scankey.ScanKeyService;
+import com.seuic.scanner.DecodeInfo;
+import com.seuic.scanner.DecodeInfoCallBack;
 import com.seuic.scanner.Scanner;
 import com.seuic.scanner.ScannerFactory;
+import com.seuic.scanner.ScannerKey;
 
-public class MainActivity extends FlutterActivity {
+public class MainActivity extends FlutterActivity implements DecodeInfoCallBack {
     private static final String CHANNEL = "samples.flutter.dev/battery";
-    Scanner scanner;
-    ScanReceiver receiver;
-    IntentFilter filter;
+    private static final String TAG = "Kenz";
+    MethodChannel.Result mResult;
     @Override
     public void configureFlutterEngine(@NonNull FlutterEngine flutterEngine) {
         super.configureFlutterEngine(flutterEngine);
         new MethodChannel(flutterEngine.getDartExecutor().getBinaryMessenger(), CHANNEL)
                 .setMethodCallHandler(
                         (call, result) -> {
+
                             // This method is invoked on the main thread.
                             if (call.method.equals("getBatteryLevel")) {
-                                int batteryLevel = getBatteryLevel();
-
-                                if (batteryLevel != -1) {
-                                    result.success(batteryLevel);
-                                } else {
-                                    result.error("UNAVAILABLE", "Battery level not available.", null);
-                                }
+                                mResult = result;
+//                                if (batteryLevel != -1) {
+//                                    result.success(batteryLevel);
+//                                } else {
+//                                    result.error("UNAVAILABLE", "Battery level not available.", null);
+//                                }
+                                initScanner();
                             } else {
                                 result.notImplemented();
                             }
+
+
                         });
+    }
+
+    Scanner scanner;
+    private void initScanner() {
+        scanner = ScannerFactory.getScanner(this);
+        boolean open = scanner.open();
+        scanner.setDecodeInfoCallBack(this);
+        scanner.enable();
+        mScanKeyService.registerCallback(mCallback, null);
+    }
+
+    private void destroyScanner() {
+        mScanKeyService.unregisterCallback(mCallback);
+        ScannerKey.close();
+        scanner.setDecodeInfoCallBack(null);
+        scanner.setVideoCallBack(null);
+        scanner.close();
+        scanner = null;
+    }
+
+    private final ScanKeyService mScanKeyService = ScanKeyService.getInstance();
+    private final IKeyEventCallback mCallback = new IKeyEventCallback.Stub() {
+        @Override
+        public void onKeyDown(int keyCode) throws RemoteException {
+            Log.d(TAG, "onKeyDown: keyCode=" + keyCode);
+            if (scanner != null) {
+                scanner.startScan();
+            }
+        }
+
+        @Override
+        public void onKeyUp(int keyCode) throws RemoteException {
+            Log.d(TAG, "onKeyUp: keyCode=" + keyCode);
+            if (scanner != null) {
+                scanner.stopScan();
+            }
+        }
+    };
+
+    @Override
+    protected void onCreate(Bundle savedInstanceState) {
+        super.onCreate(savedInstanceState);
+        // Call the service when the program is opened, you can call only once, do not need to call in each activity
+
+        //Each activitys to register the receiver to receive scan service passed over the bar code
+        // use custom broadcast receiver (you can define action yourself)
+        // Registering and unloading sinks is recommended on onResume and onPause
+    }
+
+    @Override
+    protected void onResume() {
+        super.onResume();
+
+
+
+    }
+
+    @Override
+    protected void onPause() {
+        super.onPause();
     }
 
     private int getBatteryLevel() {
@@ -57,27 +125,12 @@ public class MainActivity extends FlutterActivity {
             batteryLevel = (intent.getIntExtra(BatteryManager.EXTRA_LEVEL, -1) * 100) /
                     intent.getIntExtra(BatteryManager.EXTRA_SCALE, -1);
         }
-        init();
         return batteryLevel;
     }
-    void init() {
-        Intent intent = new Intent(this, ScannerService.class);
-        startService(intent);
-        //Each activitys to register the receiver to receive scan service passed over the bar code
-        // use custom broadcast receiver (you can define action yourself)
-        // Registering and unloading sinks is recommended on onResume and onPause
-        receiver = new ScanReceiver();
-        filter = new IntentFilter(ScannerService.ACTION);
-        scanner = ScannerFactory.getScanner(this);
-        if (scanner == null){
-            Log.d("init", "scanner(NULL)");
-        }
-    }
-    public class ScanReceiver extends BroadcastReceiver {
-        @Override
-        public void onReceive(Context context, Intent intent) {
-            Bundle bundle = intent.getExtras();
-            Log.d("BAR_CODE", bundle.getString(ScannerService.BAR_CODE));
-        }
+
+    @Override
+    public void onDecodeComplete(DecodeInfo info) {
+        Log.d(TAG, "onDecodeComplete: bar_code:" + info.barcode + ", code_type:" + info.codetype + ", length:" + info.length);
+        mResult.success(info.barcode);
     }
 }
