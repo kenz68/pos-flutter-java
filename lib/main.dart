@@ -32,16 +32,21 @@ class MyHomePage extends StatefulWidget {
 }
 
 class _MyHomePageState extends State<MyHomePage> {
+  static const stream = EventChannel('samples.flutter.dev/stream');
+
   @override
   void initState() {
     super.initState();
+    // ignore: avoid_print
     print("initState Called");
     _getBatteryLevel();
+    stream.receiveBroadcastStream().listen(_updateTimer);
+   
   }
 
   static const platform = MethodChannel('samples.flutter.dev/battery');
   // Get battery level.
-  String _batteryLevel = 'Unknown battery level.';
+  String _batteryLevel = 'Barcode\n';
 
   Future<void> _getBatteryLevel() async {
     String batteryLevel;
@@ -57,6 +62,12 @@ class _MyHomePageState extends State<MyHomePage> {
     });
   }
 
+  void _updateTimer(timer) {
+    debugPrint("Timer $timer");
+    setState(() {
+      _batteryLevel += '$timer\n';
+    });
+  }
   @override
   Widget build(BuildContext context) {
     return Material(
